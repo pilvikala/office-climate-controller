@@ -320,10 +320,18 @@ async function loadSchemasDropdown() {
     });
 
     activeSchemaId = activeRes.schema ? activeRes.schema.id : null;
+
     if (activeSchemaId != null) {
       select.value = String(activeSchemaId);
+      try {
+        const data = await fetchJson(`/api/schemas/${activeSchemaId}`);
+        fillSchemaForm(data.schema);
+      } catch (err) {
+        console.error(err);
+      }
     } else {
       select.value = "";
+      clearSchemaForm();
     }
   } catch (err) {
     console.error(err);
