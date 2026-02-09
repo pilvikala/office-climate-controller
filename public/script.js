@@ -75,6 +75,19 @@ async function loadTemperatureStatus() {
   }
 }
 
+async function loadAppVersion() {
+  try {
+    const el = document.getElementById("app-version");
+    if (!el) return;
+    const data = await fetchJson("/version.json");
+    if (data && typeof data.version === "string" && data.version.trim() !== "") {
+      el.textContent = `Version: ${data.version}`;
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function saveTargetTemperature() {
   const input = document.getElementById("target-input");
   const status = document.getElementById("status-message");
@@ -546,6 +559,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loadTargetTemperature();
   loadTemperatureStatus();
+  loadAppVersion();
   loadHistoryChart();
   loadSchemasDropdown();
 
