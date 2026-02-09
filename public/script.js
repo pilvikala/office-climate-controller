@@ -31,6 +31,50 @@ async function loadTargetTemperature() {
   }
 }
 
+async function loadTemperatureStatus() {
+  try {
+    const data = await fetchJson("/api/temperature/status");
+
+    const currentDisplay = document.getElementById("current-temp-display");
+    const currentTimestamp = document.getElementById("current-temp-timestamp");
+    const desiredDisplay = document.getElementById("desired-temp-display");
+    const desiredSource = document.getElementById("desired-temp-source");
+
+    if (data.currentTemperature != null) {
+      currentDisplay.textContent = data.currentTemperature.toFixed(1);
+
+      if (data.currentTemperatureTimestamp && currentTimestamp) {
+        const ts = data.currentTemperatureTimestamp;
+        const hasZone = ts.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(ts);
+        const utcString = hasZone ? ts : ts.replace(" ", "T") + "Z";
+        const time = new Date(utcString);
+        currentTimestamp.textContent = `Last reading: ${time.toLocaleString(undefined, {
+          dateStyle: "short",
+          timeStyle: "short",
+        })}`;
+      }
+    } else {
+      currentDisplay.textContent = "--";
+      if (currentTimestamp) {
+        currentTimestamp.textContent = "No recent temperature readings yet.";
+      }
+    }
+
+    if (desiredDisplay && desiredSource) {
+      desiredDisplay.textContent = data.targetTemperature.toFixed(1);
+
+      if (data.targetSource === "schema" && data.targetSchemaId != null) {
+        const modeLabel = data.targetMode === "in-office" ? "in-office" : "out-of-office";
+        desiredSource.textContent = `From active schema (ID ${data.targetSchemaId}), ${modeLabel} target.`;
+      } else {
+        desiredSource.textContent = "From default target temperature setting.";
+      }
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function saveTargetTemperature() {
   const input = document.getElementById("target-input");
   const status = document.getElementById("status-message");
@@ -52,6 +96,7 @@ async function saveTargetTemperature() {
     status.textContent = "Target temperature saved.";
     status.classList.remove("status-error");
     status.classList.add("status-ok");
+    await loadTemperatureStatus();
   } catch (err) {
     console.error(err);
     status.textContent = "Failed to save target temperature.";
@@ -75,6 +120,7 @@ async function sendCurrentTemperature() {
     });
     input.value = "";
     await loadHistory();
+    await loadTemperatureStatus();
   } catch (err) {
     console.error(err);
     alert("Failed to log current temperature.");
@@ -274,6 +320,7 @@ async function saveSchema() {
     fillSchemaForm(result.schema);
     await loadSchemasDropdown();
     await loadTargetTemperature();
+    await loadTemperatureStatus();
 
     status.textContent = "Schema saved.";
     status.classList.remove("status-error");
@@ -302,6 +349,7 @@ async function setActiveFromForm() {
     });
     await loadSchemasDropdown();
     await loadTargetTemperature();
+    await loadTemperatureStatus();
     status.textContent = "Schema set as active.";
     status.classList.remove("status-error");
     status.classList.add("status-ok");
@@ -323,6 +371,7 @@ async function clearActiveSchema() {
     });
     await loadSchemasDropdown();
     await loadTargetTemperature();
+    await loadTemperatureStatus();
     status.textContent = "Active schema cleared. Using default target temperature.";
     status.classList.remove("status-error");
     status.classList.add("status-ok");
@@ -354,6 +403,7 @@ async function deleteCurrentSchema() {
     clearSchemaForm();
     await loadSchemasDropdown();
     await loadTargetTemperature();
+    await loadTemperatureStatus();
     status.textContent = "Schema deleted.";
     status.classList.remove("status-error");
     status.classList.add("status-ok");
@@ -381,6 +431,14 @@ function copyMondayToAllDays() {
   }
 }
 
+function toggleDetails() {
+  const body = document.getElementById("details-content");
+  const btn = document.getElementById("details-toggle-btn");
+  if (!body || !btn) return;
+  const collapsed = body.classList.toggle("collapsed");
+  btn.textContent = collapsed ? "Show details" : "Hide details";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("save-target-btn").addEventListener("click", saveTargetTemperature);
   document.getElementById("send-current-btn").addEventListener("click", sendCurrentTemperature);
@@ -396,12 +454,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("clear-active-btn").addEventListener("click", clearActiveSchema);
   document.getElementById("delete-schema-btn").addEventListener("click", deleteCurrentSchema);
   document.getElementById("copy-monday-btn").addEventListener("click", copyMondayToAllDays);
+  document.getElementById("details-toggle-btn").addEventListener("click", toggleDetails);
 
   loadTargetTemperature();
+  loadTemperatureStatus();
   loadHistory();
   loadSchemasDropdown();
 
   // Refresh history periodically
   setInterval(loadHistory, 30_000);
+  setInterval(loadTemperatureStatus, 30_000);
 });
 

@@ -59,10 +59,9 @@ body {
   color: var(--text-muted);
   font-size: 0.95rem;
 }
-
 .app-main {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -88,6 +87,22 @@ body {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #e5e7eb;
+}
+
+.status-card {
+  position: relative;
+}
+
+.status-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.status-value {
+  font-size: 2.2rem;
+  font-weight: 600;
 }
 
 .target-row {
@@ -208,10 +223,6 @@ button:active {
 
 .history-table tbody tr:hover {
   background: rgba(59, 130, 246, 0.14);
-}
-
-.card-wide {
-  grid-column: 1 / -1;
 }
 
 .schema-header {
@@ -388,6 +399,41 @@ select:focus {
 
 .small-hint {
   font-size: 0.78rem;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .details-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.collapsible {
+  margin-top: 4px;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.collapsible-body.collapsed {
+  display: none;
+}
+
+.small-toggle-btn {
+  padding-inline: 12px;
+  padding-block: 6px;
+  font-size: 0.75rem;
 }
 
 

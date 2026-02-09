@@ -1,112 +1,148 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Office Climate Controller</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div class="app">
-      <header class="app-header">
-        <h1>Office Climate Controller</h1>
-        <p class="subtitle">Adjust and monitor your office temperature</p>
-      </header>
 
-      <main class="app-main">
-        <section class="card">
-          <h2>Target Temperature</h2>
-          <div class="target-row">
-            <input id="target-input" type="number" step="0.5" />
-            <span class="unit">°C</span>
-            <button id="save-target-btn">Save</button>
-          </div>
-          <p id="status-message" class="status"></p>
-          <p id="effective-status" class="hint small-hint"></p>
-        </section>
+<head>
+  <meta charset="UTF-8" />
+  <title>Office Climate Controller</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
 
-        <section class="card">
-          <h2>Simulate Current Reading</h2>
-          <div class="target-row">
-            <input id="current-input" type="number" step="0.5" />
-            <span class="unit">°C</span>
-            <button id="send-current-btn">Log</button>
-          </div>
-          <p class="hint">In a real deployment, this would be sent by a sensor/device.</p>
-        </section>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>Office Climate Controller</h1>
+      <p class="subtitle">Adjust and monitor your office temperature</p>
+    </header>
 
-        <section class="card">
-          <h2>Recent Temperatures</h2>
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Temperature (°C)</th>
-              </tr>
-            </thead>
-            <tbody id="history-body"></tbody>
-          </table>
-        </section>
-      </main>
-
-      <section class="card card-wide">
-        <div class="schema-header">
-          <div>
-            <h2>Temperature Schedules</h2>
-            <p class="hint">Define day- and time-based target temperatures and activate a schema.</p>
-          </div>
-          <div class="schema-actions">
-            <label class="schema-label">
-              Active schema
-              <select id="schema-select"></select>
-            </label>
-            <button id="new-schema-btn" type="button">New schema</button>
-            <button id="set-active-btn" type="button">Set as active</button>
-            <button id="clear-active-btn" type="button" class="ghost">Clear active</button>
-          </div>
+    <main class="app-main">
+      <section class="card status-card">
+        <h2>Current Temperature</h2>
+        <div class="status-value-row">
+          <span id="current-temp-display" class="status-value">--</span>
+          <span class="unit">°C</span>
         </div>
-
-        <div class="schema-meta">
-          <div class="schema-field">
-            <label for="schema-name">Name</label>
-            <input id="schema-name" type="text" placeholder="Work week, Holidays, Night mode..." />
-          </div>
-          <div class="schema-field">
-            <label for="schema-description">Description</label>
-            <input id="schema-description" type="text" placeholder="Optional short description" />
-          </div>
-          <div class="schema-field">
-            <label for="schema-in-temp">In-office temperature (°C)</label>
-            <input id="schema-in-temp" type="number" step="0.5" placeholder="e.g. 22" />
-          </div>
-          <div class="schema-field">
-            <label for="schema-out-temp">Out-of-office temperature (°C)</label>
-            <input id="schema-out-temp" type="number" step="0.5" placeholder="e.g. 18" />
-          </div>
-        </div>
-
-        <div class="schema-grid">
-          <div class="schema-grid-header">
-            <span>Day</span>
-            <span>Start</span>
-            <span>End</span>
-          </div>
-          <div id="schema-days"></div>
-        </div>
-
-        <div class="schema-footer">
-          <button id="copy-monday-btn" type="button" class="ghost">Copy Sunday to all days</button>
-          <div class="schema-footer-right">
-            <button id="delete-schema-btn" type="button" class="danger ghost">Delete schema</button>
-            <button id="save-schema-btn" type="button">Save schema</button>
-          </div>
-        </div>
-
-        <p id="schema-status" class="status"></p>
+        <p id="current-temp-timestamp" class="hint small-hint"></p>
       </section>
-    </div>
 
-    <script src="script.js"></script>
-  </body>
-  </html>
+      <section class="card status-card">
+        <h2>Desired Temperature</h2>
+        <div class="status-value-row">
+          <span id="desired-temp-display" class="status-value">--</span>
+          <span class="unit">°C</span>
+        </div>
+        <p id="desired-temp-source" class="hint small-hint"></p>
+      </section>
+    </main>
 
+    <section class="card card-wide collapsible">
+      <div class="collapsible-header">
+        <div>
+          <h2>Controls & schedules</h2>
+          <p class="hint">Adjust targets, simulate readings and manage schedules.</p>
+        </div>
+        <button id="details-toggle-btn" type="button" class="ghost small-toggle-btn">
+          Hide details
+        </button>
+      </div>
+
+      <div id="details-content" class="collapsible-body collapsed">
+        <div class="details-grid">
+          <section class="card">
+            <h2>Target Temperature</h2>
+            <div class="target-row">
+              <input id="target-input" type="number" step="0.5" />
+              <span class="unit">°C</span>
+              <button id="save-target-btn">Save</button>
+            </div>
+            <p id="status-message" class="status"></p>
+            <p id="effective-status" class="hint small-hint"></p>
+          </section>
+
+          <section class="card">
+            <h2>Simulate Current Reading</h2>
+            <div class="target-row">
+              <input id="current-input" type="number" step="0.5" />
+              <span class="unit">°C</span>
+              <button id="send-current-btn">Log</button>
+            </div>
+            <p class="hint">In a real deployment, this would be sent by a sensor/device.</p>
+          </section>
+
+          <section class="card">
+            <h2>Recent Temperatures</h2>
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Temperature (°C)</th>
+                </tr>
+              </thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </section>
+        </div>
+
+        <section class="card card-wide">
+          <div class="schema-header">
+            <div>
+              <h2>Temperature Schedules</h2>
+              <p class="hint">Define day- and time-based target temperatures and activate a schema.</p>
+            </div>
+            <div class="schema-actions">
+              <label class="schema-label">
+                Active schema
+                <select id="schema-select"></select>
+              </label>
+              <button id="new-schema-btn" type="button">New schema</button>
+              <button id="set-active-btn" type="button">Set as active</button>
+              <button id="clear-active-btn" type="button" class="ghost">Clear active</button>
+            </div>
+          </div>
+
+          <div class="schema-meta">
+            <div class="schema-field">
+              <label for="schema-name">Name</label>
+              <input id="schema-name" type="text" placeholder="Work week, Holidays, Night mode..." />
+            </div>
+            <div class="schema-field">
+              <label for="schema-description">Description</label>
+              <input id="schema-description" type="text" placeholder="Optional short description" />
+            </div>
+            <div class="schema-field">
+              <label for="schema-in-temp">In-office temperature (°C)</label>
+              <input id="schema-in-temp" type="number" step="0.5" placeholder="e.g. 22" />
+            </div>
+            <div class="schema-field">
+              <label for="schema-out-temp">Out-of-office temperature (°C)</label>
+              <input id="schema-out-temp" type="number" step="0.5" placeholder="e.g. 18" />
+            </div>
+          </div>
+
+          <div class="schema-grid">
+            <div class="schema-grid-header">
+              <span>Day</span>
+              <span>Start</span>
+              <span>End</span>
+            </div>
+            <div id="schema-days"></div>
+          </div>
+
+          <div class="schema-footer">
+            <button id="copy-monday-btn" type="button" class="ghost">Copy Sunday to all days</button>
+            <div class="schema-footer-right">
+              <button id="delete-schema-btn" type="button" class="danger ghost">Delete schema</button>
+              <button id="save-schema-btn" type="button">Save schema</button>
+            </div>
+          </div>
+
+          <p id="schema-status" class="status"></p>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
