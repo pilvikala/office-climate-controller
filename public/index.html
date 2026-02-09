@@ -35,6 +35,14 @@
       </section>
     </main>
 
+    <section class="card card-wide">
+      <h2>Last 24 hours</h2>
+      <p class="hint">Recent temperature readings over the past day.</p>
+      <div id="history-chart" class="history-chart">
+        <!-- SVG chart is injected here -->
+      </div>
+    </section>
+
     <section class="card card-wide collapsible">
       <div class="collapsible-header">
         <div>
@@ -67,19 +75,6 @@
               <button id="send-current-btn">Log</button>
             </div>
             <p class="hint">In a real deployment, this would be sent by a sensor/device.</p>
-          </section>
-
-          <section class="card">
-            <h2>Recent Temperatures</h2>
-            <table class="history-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Temperature (°C)</th>
-                </tr>
-              </thead>
-              <tbody id="history-body"></tbody>
-            </table>
           </section>
         </div>
 

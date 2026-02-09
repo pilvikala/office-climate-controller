@@ -187,42 +187,42 @@ button:active {
   color: var(--text-muted);
 }
 
-.history-table {
+.history-chart {
+  margin-top: 10px;
   width: 100%;
-  border-collapse: collapse;
-  margin-top: 4px;
-  font-size: 0.85rem;
+  height: 220px;
 }
 
-.history-table thead {
-  background: rgba(15, 23, 42, 0.85);
+.history-chart svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.history-table th,
-.history-table td {
-  padding: 6px 8px;
-  text-align: left;
-  border-bottom: 1px solid rgba(30, 41, 59, 0.9);
+.history-chart .chart-bg {
+  fill: rgba(15, 23, 42, 0.9);
 }
 
-.history-table th {
-  font-weight: 500;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+.history-chart .chart-line {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-width: 2;
 }
 
-.history-table tbody tr:nth-child(even) {
-  background: rgba(15, 23, 42, 0.7);
+.history-chart .chart-axis {
+  stroke: rgba(148, 163, 184, 0.6);
+  stroke-width: 1;
 }
 
-.history-table tbody tr:nth-child(odd) {
-  background: rgba(15, 23, 42, 0.4);
+.history-chart .chart-grid {
+  stroke: rgba(30, 64, 175, 0.6);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
 }
 
-.history-table tbody tr:hover {
-  background: rgba(59, 130, 246, 0.14);
+.history-chart .chart-label {
+  fill: var(--text-muted);
+  font-size: 10px;
 }
 
 .schema-header {
