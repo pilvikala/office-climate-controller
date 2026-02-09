@@ -158,7 +158,11 @@ function validateAndNormalizeIntervals(
       return { error: "end time must be after start time" };
     }
 
-    normalized.push({ id: 0, dayOfWeek: p.dayOfWeek, startTimeMinutes: startMinutes, endTimeMinutes: endMinutes });
+    normalized.push({
+      dayOfWeek: p.dayOfWeek,
+      startTimeMinutes: startMinutes,
+      endTimeMinutes: endMinutes,
+    });
   }
 
   return normalized;
