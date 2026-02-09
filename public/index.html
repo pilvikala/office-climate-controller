@@ -38,9 +38,7 @@
     <section class="card card-wide">
       <h2>Last 24 hours</h2>
       <p class="hint">Recent temperature readings over the past day.</p>
-      <div id="history-chart" class="history-chart">
-        <!-- SVG chart is injected here -->
-      </div>
+      <div id="history-chart" class="history-chart"></div>
     </section>
 
     <section class="card card-wide collapsible">
@@ -50,7 +48,7 @@
           <p class="hint">Adjust targets, simulate readings and manage schedules.</p>
         </div>
         <button id="details-toggle-btn" type="button" class="ghost small-toggle-btn">
-          Hide details
+          Show details
         </button>
       </div>
 
@@ -137,6 +135,7 @@
     </section>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="script.js"></script>
 </body>
 

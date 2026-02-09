@@ -191,38 +191,13 @@ button:active {
   margin-top: 10px;
   width: 100%;
   height: 220px;
+  position: relative;
 }
 
-.history-chart svg {
+.history-chart canvas {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.history-chart .chart-bg {
-  fill: rgba(15, 23, 42, 0.9);
-}
-
-.history-chart .chart-line {
-  fill: none;
-  stroke: #38bdf8;
-  stroke-width: 2;
-}
-
-.history-chart .chart-axis {
-  stroke: rgba(148, 163, 184, 0.6);
-  stroke-width: 1;
-}
-
-.history-chart .chart-grid {
-  stroke: rgba(30, 64, 175, 0.6);
-  stroke-width: 1;
-  stroke-dasharray: 3 4;
-}
-
-.history-chart .chart-label {
-  fill: var(--text-muted);
-  font-size: 10px;
 }
 
 .schema-header {

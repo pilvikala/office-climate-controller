@@ -127,6 +127,8 @@ async function sendCurrentTemperature() {
   }
 }
 
+let historyChartInstance = null;
+
 async function loadHistoryChart() {
   try {
     const data = await fetchJson("/api/temperature/history?limit=500");
@@ -156,101 +158,77 @@ async function loadHistoryChart() {
       return;
     }
 
-    const width = 600;
-    const height = 180;
-    const paddingLeft = 40;
-    const paddingRight = 10;
-    const paddingTop = 10;
-    const paddingBottom = 24;
+    const labels = points.map((p) =>
+      new Date(p.t).toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
+    const temps = points.map((p) => p.temperature);
 
-    const minTemp = Math.min(...points.map((p) => p.temperature));
-    const maxTemp = Math.max(...points.map((p) => p.temperature));
-    const tempPadding = (maxTemp - minTemp || 1) * 0.15;
-    const yMin = minTemp - tempPadding;
-    const yMax = maxTemp + tempPadding;
+    const canvas = document.createElement("canvas");
+    container.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+    if (!ctx || typeof Chart === "undefined") return;
 
-    const tMin = cutoff;
-    const tMax = now;
+    if (historyChartInstance) {
+      historyChartInstance.destroy();
+    }
 
-    const xScale = (t) =>
-      paddingLeft + ((t - tMin) / (tMax - tMin || 1)) * (width - paddingLeft - paddingRight);
-    const yScale = (temp) =>
-      height - paddingBottom - ((temp - yMin) / (yMax - yMin || 1)) * (height - paddingTop - paddingBottom);
-
-    const svgns = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(svgns, "svg");
-    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-
-    // background
-    const bg = document.createElementNS(svgns, "rect");
-    bg.setAttribute("x", "0");
-    bg.setAttribute("y", "0");
-    bg.setAttribute("width", String(width));
-    bg.setAttribute("height", String(height));
-    bg.setAttribute("class", "chart-bg");
-    svg.appendChild(bg);
-
-    // y-axis grid (min, mid, max)
-    const levels = [yMin, (yMin + yMax) / 2, yMax];
-    levels.forEach((temp) => {
-      const y = yScale(temp);
-      const grid = document.createElementNS(svgns, "line");
-      grid.setAttribute("x1", String(paddingLeft));
-      grid.setAttribute("x2", String(width - paddingRight));
-      grid.setAttribute("y1", String(y));
-      grid.setAttribute("y2", String(y));
-      grid.setAttribute("class", "chart-grid");
-      svg.appendChild(grid);
-
-      const label = document.createElementNS(svgns, "text");
-      label.setAttribute("x", String(paddingLeft - 6));
-      label.setAttribute("y", String(y + 3));
-      label.setAttribute("text-anchor", "end");
-      label.setAttribute("class", "chart-label");
-      label.textContent = temp.toFixed(1) + "°";
-      svg.appendChild(label);
+    historyChartInstance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Temperature (°C)",
+            data: temps,
+            borderColor: "#38bdf8",
+            backgroundColor: "rgba(56, 189, 248, 0.18)",
+            borderWidth: 2,
+            tension: 0.25,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            grid: {
+              color: "rgba(148, 163, 184, 0.15)",
+            },
+            ticks: {
+              color: "#9ca3af",
+              maxTicksLimit: 8,
+            },
+          },
+          y: {
+            grid: {
+              color: "rgba(30, 64, 175, 0.4)",
+            },
+            ticks: {
+              color: "#9ca3af",
+              callback: (value) => value + "°",
+            },
+          },
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: "#e5e7eb",
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.parsed.y.toFixed(1)} °C`,
+            },
+          },
+        },
+      },
     });
-
-    // x-axis (now and -24h)
-    const axis = document.createElementNS(svgns, "line");
-    const axisY = height - paddingBottom;
-    axis.setAttribute("x1", String(paddingLeft));
-    axis.setAttribute("x2", String(width - paddingRight));
-    axis.setAttribute("y1", String(axisY));
-    axis.setAttribute("y2", String(axisY));
-    axis.setAttribute("class", "chart-axis");
-    svg.appendChild(axis);
-
-    const leftLabel = document.createElementNS(svgns, "text");
-    leftLabel.setAttribute("x", String(paddingLeft));
-    leftLabel.setAttribute("y", String(height - 6));
-    leftLabel.setAttribute("text-anchor", "start");
-    leftLabel.setAttribute("class", "chart-label");
-    leftLabel.textContent = "24h ago";
-    svg.appendChild(leftLabel);
-
-    const rightLabel = document.createElementNS(svgns, "text");
-    rightLabel.setAttribute("x", String(width - paddingRight));
-    rightLabel.setAttribute("y", String(height - 6));
-    rightLabel.setAttribute("text-anchor", "end");
-    rightLabel.setAttribute("class", "chart-label");
-    rightLabel.textContent = "now";
-    svg.appendChild(rightLabel);
-
-    // line path
-    const path = document.createElementNS(svgns, "path");
-    const d = points
-      .map((p, idx) => {
-        const x = xScale(p.t);
-        const y = yScale(p.temperature);
-        return `${idx === 0 ? "M" : "L"} ${x} ${y}`;
-      })
-      .join(" ");
-    path.setAttribute("d", d);
-    path.setAttribute("class", "chart-line");
-    svg.appendChild(path);
-
-    container.appendChild(svg);
   } catch (err) {
     console.error(err);
   }
