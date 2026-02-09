@@ -89,6 +89,21 @@ app.post("/api/temperature/current", (req, res) => {
   res.json({ ok: true });
 });
 
+// Alternate GET endpoint for sensors that can only perform GET requests.
+// Example: /api/temperature/current?temperature=21.3
+app.get("/api/temperature/current", (req, res) => {
+  const raw = req.query.temperature;
+  const temperature =
+    typeof raw === "string" ? Number(raw) : Array.isArray(raw) ? Number(raw[0]) : NaN;
+
+  if (!Number.isFinite(temperature)) {
+    return res.status(400).json({ error: "Invalid temperature" });
+  }
+
+  logTemperature(temperature);
+  res.json({ ok: true });
+});
+
 app.get("/api/temperature/history", (req, res) => {
   const limitParam = req.query.limit;
   const limit = typeof limitParam === "string" ? Number(limitParam) : 50;

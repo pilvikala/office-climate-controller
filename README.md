@@ -54,6 +54,13 @@ curl -X POST http://localhost:3000/api/temperature/current \
   -d '{"temperature": 21.3}'
 ```
 
+- **GET** `/api/temperature/current?temperature=21.3`  
+  Alternate way to log a current temperature reading for sensors that can only send GET requests.
+
+```bash
+curl "http://localhost:3000/api/temperature/current?temperature=21.3"
+```
+
 - **GET** `/api/temperature/history?limit=20`  
   Returns recent logged temperatures (default 50, max 500).
 
