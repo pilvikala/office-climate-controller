@@ -564,7 +564,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadSchemasDropdown();
 
   // Refresh history/chart periodically
-  setInterval(loadHistoryChart, 30_000);
-  setInterval(loadTemperatureStatus, 30_000);
+  setInterval(loadHistoryChart, 300_000);
+  setInterval(loadTemperatureStatus, 300_000);
 });
 
