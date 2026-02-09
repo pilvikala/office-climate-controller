@@ -89,11 +89,14 @@ async function loadHistory() {
 
     data.history.forEach((row) => {
       const tr = document.createElement("tr");
-      const time = new Date(row.timestamp);
+      // API sends UTC; parse as UTC then display in local timezone
+      const hasZone = row.timestamp.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(row.timestamp);
+      const utcString = hasZone ? row.timestamp : row.timestamp.replace(" ", "T") + "Z";
+      const time = new Date(utcString);
       const timeTd = document.createElement("td");
       const tempTd = document.createElement("td");
 
-      timeTd.textContent = time.toLocaleString();
+      timeTd.textContent = time.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
       tempTd.textContent = row.temperature.toFixed(1);
 
       tr.appendChild(timeTd);
