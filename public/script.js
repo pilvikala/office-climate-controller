@@ -10,6 +10,290 @@ async function fetchJson(url, options) {
   return res.json();
 }
 
+
+// ----- Weather widget -----
+
+const WEATHER_STORAGE_KEY = "office-climate-weather-config";
+
+let weatherConfig = {
+  lat: 52.2297, // Warsaw by default
+  lon: 21.0122,
+  label: "Office",
+  source: "default",
+};
+
+function describeWeatherCode(code) {
+  if (code == null) return "Unknown conditions";
+
+  if (code === 0) return "Clear sky";
+  if (code === 1 || code === 2) return "Partly cloudy";
+  if (code === 3) return "Overcast";
+
+  if (code === 45 || code === 48) return "Foggy";
+
+  if (code === 51 || code === 53 || code === 55 || code === 56 || code === 57) return "Drizzle";
+  if (code === 61 || code === 63 || code === 65 || code === 66 || code === 67) return "Rain";
+
+  if (code === 71 || code === 73 || code === 75 || code === 77) return "Snow";
+
+  if (code === 80 || code === 81 || code === 82) return "Rain showers";
+
+  if (code === 95 || code === 96 || code === 99) return "Thunderstorms";
+
+  return "Mixed conditions";
+}
+
+function iconForWeatherCode(code) {
+  if (code == null) return "❓";
+
+  if (code === 0) return "☀️";
+  if (code === 1 || code === 2) return "🌤️";
+  if (code === 3) return "☁️";
+
+  if (code === 45 || code === 48) return "🌫️";
+
+  if (code === 51 || code === 53 || code === 55 || code === 56 || code === 57) return "🌦️";
+  if (code === 61 || code === 63 || code === 65 || code === 66 || code === 67) return "🌧️";
+
+  if (code === 71 || code === 73 || code === 75 || code === 77) return "🌨️";
+
+  if (code === 80 || code === 81 || code === 82) return "🌧️";
+
+  if (code === 95 || code === 96 || code === 99) return "⛈️";
+
+  return "❓";
+}
+
+function loadStoredWeatherConfig() {
+  try {
+    const raw = window.localStorage.getItem(WEATHER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const lat = Number(parsed.lat);
+    const lon = Number(parsed.lon);
+    const label = typeof parsed.label === "string" ? parsed.label : "Custom location";
+    const source = typeof parsed.source === "string" ? parsed.source : "custom";
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon, label, source };
+  } catch {
+    return null;
+  }
+}
+
+function saveWeatherConfig(cfg) {
+  try {
+    window.localStorage.setItem(
+      WEATHER_STORAGE_KEY,
+      JSON.stringify({
+        lat: cfg.lat,
+        lon: cfg.lon,
+        label: cfg.label,
+        source: cfg.source,
+      }),
+    );
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function applyWeatherConfigToForm() {
+  const latInput = document.getElementById("weather-lat-input");
+  const lonInput = document.getElementById("weather-lon-input");
+  if (!latInput || !lonInput) return;
+  latInput.value = weatherConfig.lat != null ? String(weatherConfig.lat.toFixed(4)) : "";
+  lonInput.value = weatherConfig.lon != null ? String(weatherConfig.lon.toFixed(4)) : "";
+}
+
+function readWeatherConfigFromForm() {
+  const latInput = document.getElementById("weather-lat-input");
+  const lonInput = document.getElementById("weather-lon-input");
+  if (!latInput || !lonInput) {
+    return null;
+  }
+  const lat = Number(latInput.value);
+  const lon = Number(lonInput.value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    return null;
+  }
+  return {
+    lat,
+    lon,
+    label: "Custom location",
+    source: "custom",
+  };
+}
+
+function setWeatherStatus(message, isError) {
+  const status = document.getElementById("weather-settings-status");
+  if (!status) return;
+  status.textContent = message || "";
+  status.classList.remove("status-ok", "status-error");
+  if (!message) return;
+  status.classList.add(isError ? "status-error" : "status-ok");
+}
+
+async function loadWeather() {
+  const currentTempEl = document.getElementById("weather-current-temp");
+  const currentSummaryEl = document.getElementById("weather-current-summary");
+  const currentIconEl = document.getElementById("weather-current-icon");
+  const forecastContainer = document.getElementById("weather-forecast-days");
+
+  if (!currentTempEl || !forecastContainer) {
+    return;
+  }
+
+  try {
+    const { lat, lon, label } = weatherConfig;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
+      lat,
+    )}&longitude=${encodeURIComponent(
+      lon,
+    )}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=4`;
+    const data = await fetchJson(url);
+
+    if (data.current && typeof data.current.temperature_2m === "number") {
+      const code = data.current.weather_code;
+      currentTempEl.textContent = data.current.temperature_2m.toFixed(1);
+      const summary = describeWeatherCode(code);
+      const locationPart = label ? `${label} · ` : "";
+      if (currentSummaryEl) {
+        currentSummaryEl.textContent = `${locationPart}${summary}`;
+      }
+      if (currentIconEl) {
+        currentIconEl.textContent = iconForWeatherCode(code);
+      }
+    } else {
+      currentTempEl.textContent = "--";
+      if (currentSummaryEl) {
+        currentSummaryEl.textContent = "Weather data unavailable.";
+      }
+      if (currentIconEl) {
+        currentIconEl.textContent = "❓";
+      }
+    }
+
+    const daily = data.daily;
+    if (!daily || !Array.isArray(daily.time)) {
+      return;
+    }
+
+    forecastContainer.innerHTML = "";
+
+    for (let i = 1; i <= 3 && i < daily.time.length; i++) {
+      const dateStr = daily.time[i];
+      const label =
+        i === 1
+          ? "Tomorrow"
+          : new Date(dateStr).toLocaleDateString(undefined, {
+              weekday: "short",
+            });
+
+      const max = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[i] : null;
+      const min = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min[i] : null;
+      const code = Array.isArray(daily.weather_code) ? daily.weather_code[i] : null;
+
+      const summary = describeWeatherCode(code);
+      const icon = iconForWeatherCode(code);
+
+      const dayEl = document.createElement("div");
+      dayEl.className = "weather-forecast-day";
+      dayEl.innerHTML = `
+        <div class="weather-forecast-day-name">${label}</div>
+        <div class="weather-forecast-temps">
+          <span class="weather-icon" aria-hidden="true">${icon}</span>
+          <span class="weather-temp-max">${max != null ? max.toFixed(0) : "--"}°</span>
+          <span class="weather-temp-min">${min != null ? min.toFixed(0) : "--"}°</span>
+        </div>
+        <div class="weather-forecast-summary">${summary}</div>
+      `;
+
+      forecastContainer.appendChild(dayEl);
+    }
+  } catch (err) {
+    console.error(err);
+    if (currentSummaryEl) {
+      currentSummaryEl.textContent = "Unable to load weather.";
+    }
+    if (currentIconEl) {
+      currentIconEl.textContent = "❓";
+    }
+  }
+}
+
+function useBrowserLocationForWeather() {
+  if (!("geolocation" in navigator)) {
+    setWeatherStatus("Browser location is not available.", true);
+    return;
+  }
+
+  setWeatherStatus("Detecting browser location…", false);
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        setWeatherStatus("Browser returned invalid coordinates.", true);
+        return;
+      }
+      weatherConfig = {
+        lat: latitude,
+        lon: longitude,
+        label: "Browser location",
+        source: "geolocation",
+      };
+      applyWeatherConfigToForm();
+      saveWeatherConfig(weatherConfig);
+      setWeatherStatus("Location updated from browser.", false);
+      loadWeather();
+    },
+    () => {
+      setWeatherStatus("Unable to access browser location.", true);
+    },
+    {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 3600000,
+    },
+  );
+}
+
+function initWeatherConfig() {
+  const stored = loadStoredWeatherConfig();
+  if (stored) {
+    weatherConfig = stored;
+  }
+  applyWeatherConfigToForm();
+}
+
+function attachWeatherSettingsHandlers() {
+  const useBrowserBtn = document.getElementById("weather-use-browser-btn");
+  const saveLocationBtn = document.getElementById("weather-save-location-btn");
+
+  if (useBrowserBtn) {
+    useBrowserBtn.addEventListener("click", () => {
+      useBrowserLocationForWeather();
+    });
+  }
+
+  if (saveLocationBtn) {
+    saveLocationBtn.addEventListener("click", () => {
+      const cfg = readWeatherConfigFromForm();
+      if (!cfg) {
+        setWeatherStatus("Please enter a valid latitude and longitude.", true);
+        return;
+      }
+      weatherConfig = cfg;
+      saveWeatherConfig(weatherConfig);
+      setWeatherStatus("Weather location saved.", false);
+      loadWeather();
+    });
+  }
+}
+
 async function loadTargetTemperature() {
   try {
     const data = await fetchJson("/api/temperature/target");
@@ -557,6 +841,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("copy-monday-btn").addEventListener("click", copyMondayToAllDays);
   document.getElementById("details-toggle-btn").addEventListener("click", toggleDetails);
 
+  initWeatherConfig();
+  attachWeatherSettingsHandlers();
+
   loadTargetTemperature();
   loadTemperatureStatus();
   loadAppVersion();
@@ -566,5 +853,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Refresh history/chart periodically
   setInterval(loadHistoryChart, 300_000);
   setInterval(loadTemperatureStatus, 300_000);
+  setInterval(loadWeather, 1_800_000);
+
+  // Load weather once after initial config is ready
+  loadWeather();
 });
 
