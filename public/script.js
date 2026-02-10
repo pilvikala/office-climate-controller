@@ -298,7 +298,11 @@ async function loadTargetTemperature() {
   try {
     const data = await fetchJson("/api/temperature/target");
     const input = document.getElementById("target-input");
-    input.value = data.targetTemperature.toFixed(1);
+    const value = clampTargetTemperature(Number(data.targetTemperature));
+    if (input) {
+      const safeValue = value != null ? value : 20;
+      updateTargetSliderUI(safeValue);
+    }
     const effective = document.getElementById("effective-status");
     if (effective) {
       if (data.source === "schema" && data.schemaId != null) {
@@ -313,6 +317,42 @@ async function loadTargetTemperature() {
   } catch (err) {
     console.error(err);
   }
+}
+
+function clampTargetTemperature(value) {
+  if (!Number.isFinite(value)) return null;
+  const min = 10;
+  const max = 25;
+  if (value < min) value = min;
+  if (value > max) value = max;
+  return value;
+}
+
+function updateTargetSliderUI(value) {
+  const input = document.getElementById("target-input");
+  const valueLabel = document.getElementById("target-input-value");
+  if (!input) return;
+
+  const clamped = clampTargetTemperature(Number(value));
+  if (clamped == null) return;
+
+  input.value = clamped.toFixed(1);
+  if (valueLabel) {
+    valueLabel.textContent = `${clamped.toFixed(1)} °C`;
+  }
+
+  const min = 10;
+  const max = 25;
+  const t = Math.min(1, Math.max(0, (clamped - min) / (max - min)));
+
+  const cold = { r: 56, g: 189, b: 248 }; // #38bdf8
+  const hot = { r: 239, g: 68, b: 68 };   // #ef4444
+  const r = Math.round(cold.r + (hot.r - cold.r) * t);
+  const g = Math.round(cold.g + (hot.g - cold.g) * t);
+  const b = Math.round(cold.b + (hot.b - cold.b) * t);
+  const color = `rgb(${r}, ${g}, ${b})`;
+
+  input.style.setProperty("--slider-thumb-color", color);
 }
 
 async function loadTemperatureStatus() {
@@ -375,11 +415,11 @@ async function loadAppVersion() {
 async function saveTargetTemperature() {
   const input = document.getElementById("target-input");
   const status = document.getElementById("status-message");
-  const value = Number(input.value);
+  const value = clampTargetTemperature(Number(input.value));
 
   status.textContent = "";
 
-  if (!Number.isFinite(value)) {
+  if (value == null) {
     status.textContent = "Please enter a valid number.";
     status.classList.add("status-error");
     return;
@@ -393,6 +433,7 @@ async function saveTargetTemperature() {
     status.textContent = "Target temperature saved.";
     status.classList.remove("status-error");
     status.classList.add("status-ok");
+    updateTargetSliderUI(value);
     await loadTemperatureStatus();
   } catch (err) {
     console.error(err);
@@ -857,6 +898,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initWeatherConfig();
   attachWeatherSettingsHandlers();
+
+  const targetInput = document.getElementById("target-input");
+  if (targetInput) {
+    targetInput.addEventListener("input", () => {
+      const value = clampTargetTemperature(Number(targetInput.value));
+      if (value != null) {
+        updateTargetSliderUI(value);
+      }
+    });
+  }
 
   loadTargetTemperature();
   loadTemperatureStatus();
