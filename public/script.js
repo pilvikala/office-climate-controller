@@ -298,7 +298,7 @@ async function loadTargetTemperature() {
   try {
     const data = await fetchJson("/api/temperature/target");
     const input = document.getElementById("target-input");
-    const value = clampTargetTemperature(Number(data.targetTemperature));
+    const value = clampTemperature(Number(data.targetTemperature));
     if (input) {
       const safeValue = value != null ? value : 20;
       updateTargetSliderUI(safeValue);
@@ -319,7 +319,7 @@ async function loadTargetTemperature() {
   }
 }
 
-function clampTargetTemperature(value) {
+function clampTemperature(value) {
   if (!Number.isFinite(value)) return null;
   const min = 10;
   const max = 25;
@@ -328,12 +328,17 @@ function clampTargetTemperature(value) {
   return value;
 }
 
-function updateTargetSliderUI(value) {
-  const input = document.getElementById("target-input");
-  const valueLabel = document.getElementById("target-input-value");
+function clampTargetTemperature(value) {
+  return clampTemperature(value);
+}
+
+function updateTemperatureSlider(inputId, valueLabelId, value) {
+  const input = document.getElementById(inputId);
+  const valueLabel = valueLabelId ? document.getElementById(valueLabelId) : null;
   if (!input) return;
 
-  const clamped = clampTargetTemperature(Number(value));
+  const raw = value != null ? value : Number(input.value);
+  const clamped = clampTemperature(raw);
   if (clamped == null) return;
 
   input.value = clamped.toFixed(1);
@@ -353,6 +358,10 @@ function updateTargetSliderUI(value) {
   const color = `rgb(${r}, ${g}, ${b})`;
 
   input.style.setProperty("--slider-thumb-color", color);
+}
+
+function updateTargetSliderUI(value) {
+  updateTemperatureSlider("target-input", "target-input-value", value);
 }
 
 async function loadTemperatureStatus() {
@@ -444,9 +453,9 @@ async function saveTargetTemperature() {
 
 async function sendCurrentTemperature() {
   const input = document.getElementById("current-input");
-  const value = Number(input.value);
+  const value = clampTemperature(Number(input.value));
 
-  if (!Number.isFinite(value)) {
+  if (value == null) {
     alert("Please enter a valid current temperature.");
     return;
   }
@@ -456,7 +465,7 @@ async function sendCurrentTemperature() {
       method: "POST",
       body: JSON.stringify({ temperature: value }),
     });
-    input.value = "";
+    updateTemperatureSlider("current-input", "current-input-value", value);
     await loadHistoryChart();
     await loadTemperatureStatus();
   } catch (err) {
@@ -615,6 +624,10 @@ function clearSchemaForm() {
   document.getElementById("schema-description").value = "";
   document.getElementById("schema-in-temp").value = "";
   document.getElementById("schema-out-temp").value = "";
+  const inLabel = document.getElementById("schema-in-temp-value");
+  const outLabel = document.getElementById("schema-out-temp-value");
+  if (inLabel) inLabel.textContent = "-- °C";
+  if (outLabel) outLabel.textContent = "-- °C";
   document.getElementById("schema-status").textContent = "";
   for (let i = 0; i < DAY_LABELS.length; i++) {
     clearSchemaDay(i);
@@ -628,6 +641,8 @@ function fillSchemaForm(schema) {
   document.getElementById("schema-description").value = schema.description || "";
   document.getElementById("schema-in-temp").value = schema.inOfficeTemperature.toFixed(1);
   document.getElementById("schema-out-temp").value = schema.outOfOfficeTemperature.toFixed(1);
+  updateTemperatureSlider("schema-in-temp", "schema-in-temp-value");
+  updateTemperatureSlider("schema-out-temp", "schema-out-temp-value");
   document.getElementById("schema-status").textContent = "";
 
   const byDay = {};
@@ -879,6 +894,19 @@ function toggleDetails() {
   btn.textContent = collapsed ? "Show details" : "Hide details";
 }
 
+function attachTemperatureSlider(inputId, valueLabelId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.addEventListener("input", () => {
+    updateTemperatureSlider(inputId, valueLabelId);
+  });
+  // Initialize UI from current value or a sensible default
+  if (!input.value) {
+    input.value = "20";
+  }
+  updateTemperatureSlider(inputId, valueLabelId);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("save-target-btn").addEventListener("click", saveTargetTemperature);
   document.getElementById("send-current-btn").addEventListener("click", sendCurrentTemperature);
@@ -896,18 +924,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("copy-monday-btn").addEventListener("click", copyMondayToAllDays);
   document.getElementById("details-toggle-btn").addEventListener("click", toggleDetails);
 
+  // Shared slider behavior for all temperature sliders
+  attachTemperatureSlider("target-input", "target-input-value");
+  attachTemperatureSlider("current-input", "current-input-value");
+  attachTemperatureSlider("schema-in-temp", "schema-in-temp-value");
+  attachTemperatureSlider("schema-out-temp", "schema-out-temp-value");
+
   initWeatherConfig();
   attachWeatherSettingsHandlers();
-
-  const targetInput = document.getElementById("target-input");
-  if (targetInput) {
-    targetInput.addEventListener("input", () => {
-      const value = clampTargetTemperature(Number(targetInput.value));
-      if (value != null) {
-        updateTargetSliderUI(value);
-      }
-    });
-  }
 
   loadTargetTemperature();
   loadTemperatureStatus();
