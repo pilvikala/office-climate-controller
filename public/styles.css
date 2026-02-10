@@ -59,6 +59,7 @@ body {
   color: var(--text-muted);
   font-size: 0.95rem;
 }
+
 .app-main {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -343,10 +344,29 @@ select:focus {
   overflow: hidden;
 }
 
+.schema-day-row {
+  grid-template-columns: 1.1fr 0.7fr 0.7fr 0.2fr;
+
+}
+
+.schema-day-clear-btn {
+  background: #ffffff;
+  border: solid 3px #0ea5e9;
+  color: #0ea5e9;
+}
+
+.schema-day-clear-btn:hover {
+  border-color: #e90e0e;
+  box-shadow: unset;
+  transform: unset;
+  filter: unset;
+  box-shadow: unset;
+}
+
 .schema-grid-header,
 .schema-day-row {
   display: grid;
-  grid-template-columns: 1.1fr 0.7fr 0.7fr;
+  grid-template-columns: 1.1fr 0.7fr 0.7fr 0.2fr;
   gap: 4px;
   align-items: center;
 }
@@ -501,5 +521,3 @@ select:focus {
   padding-block: 6px;
   font-size: 0.75rem;
 }
-
-

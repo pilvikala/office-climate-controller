@@ -538,6 +538,13 @@ const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Fri
 let currentSchemaId = null;
 let activeSchemaId = null;
 
+function clearSchemaDay(dayIndex) {
+  const startInput = document.getElementById(`day-${dayIndex}-start`);
+  const endInput = document.getElementById(`day-${dayIndex}-end`);
+  if (startInput) startInput.value = "";
+  if (endInput) endInput.value = "";
+}
+
 function buildSchemaDayRows() {
   const container = document.getElementById("schema-days");
   container.innerHTML = "";
@@ -548,8 +555,16 @@ function buildSchemaDayRows() {
       <span class="schema-day-label">${label}</span>
       <input id="day-${dayIndex}-start" type="time" />
       <input id="day-${dayIndex}-end" type="time" />
+      <button type="button" class="schema-day-clear-btn">Clear</button>
     `;
     container.appendChild(row);
+
+    const clearBtn = row.querySelector(".schema-day-clear-btn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        clearSchemaDay(dayIndex);
+      });
+    }
   });
 }
 
@@ -561,8 +576,7 @@ function clearSchemaForm() {
   document.getElementById("schema-out-temp").value = "";
   document.getElementById("schema-status").textContent = "";
   for (let i = 0; i < DAY_LABELS.length; i++) {
-    document.getElementById(`day-${i}-start`).value = "";
-    document.getElementById(`day-${i}-end`).value = "";
+    clearSchemaDay(i);
   }
 }
 
