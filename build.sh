@@ -9,6 +9,7 @@ mkdir -p dist
 cp -r public ./dist/
 cp package.json ./dist/package.json
 cp package-lock.json ./dist/package-lock.json
+cp scripts/install-weather-cron-dietpi.sh ./dist/install-weather-cron-dietpi.sh
 
 # Derive version for this build. Prefer APP_VERSION (e.g. from CI),
 # otherwise fall back to "dev".

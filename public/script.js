@@ -13,11 +13,9 @@ async function fetchJson(url, options) {
 
 // ----- Weather widget -----
 
-const WEATHER_STORAGE_KEY = "office-climate-weather-config";
-
 let weatherConfig = {
-  lat: 52.2297, // Warsaw by default
-  lon: 21.0122,
+  lat: 0,
+  lon: 0,
   label: "Office",
   source: "default",
 };
@@ -64,37 +62,21 @@ function iconForWeatherCode(code) {
   return "❓";
 }
 
-function loadStoredWeatherConfig() {
+async function loadWeatherConfigFromServer() {
   try {
-    const raw = window.localStorage.getItem(WEATHER_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    const lat = Number(parsed.lat);
-    const lon = Number(parsed.lon);
-    const label = typeof parsed.label === "string" ? parsed.label : "Custom location";
-    const source = typeof parsed.source === "string" ? parsed.source : "custom";
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    return { lat, lon, label, source };
+    const data = await fetchJson("/api/weather/settings");
+    if (data && Number.isFinite(data.lat) && Number.isFinite(data.lon)) {
+      return {
+        lat: data.lat,
+        lon: data.lon,
+        label: typeof data.label === "string" ? data.label : "Office",
+        source: "server",
+      };
+    }
   } catch {
-    return null;
+    // ignore; use defaults
   }
-}
-
-function saveWeatherConfig(cfg) {
-  try {
-    window.localStorage.setItem(
-      WEATHER_STORAGE_KEY,
-      JSON.stringify({
-        lat: cfg.lat,
-        lon: cfg.lon,
-        label: cfg.label,
-        source: cfg.source,
-      }),
-    );
-  } catch {
-    // ignore storage errors
-  }
+  return null;
 }
 
 function applyWeatherConfigToForm() {
@@ -147,13 +129,8 @@ async function loadWeather() {
   }
 
   try {
-    const { lat, lon, label } = weatherConfig;
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
-      lat,
-    )}&longitude=${encodeURIComponent(
-      lon,
-    )}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=4`;
-    const data = await fetchJson(url);
+    const data = await fetchJson("/api/weather/forecast");
+    const label = data.label && typeof data.label === "string" ? data.label : "";
 
     if (data.current && typeof data.current.temperature_2m === "number") {
       const code = data.current.weather_code;
@@ -185,12 +162,12 @@ async function loadWeather() {
 
     for (let i = 1; i <= 3 && i < daily.time.length; i++) {
       const dateStr = daily.time[i];
-      const label =
+      const dayLabel =
         i === 1
           ? "Tomorrow"
           : new Date(dateStr).toLocaleDateString(undefined, {
-              weekday: "short",
-            });
+            weekday: "short",
+          });
 
       const max = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[i] : null;
       const min = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min[i] : null;
@@ -202,7 +179,7 @@ async function loadWeather() {
       const dayEl = document.createElement("div");
       dayEl.className = "weather-forecast-day";
       dayEl.innerHTML = `
-        <div class="weather-forecast-day-name">${label}</div>
+        <div class="weather-forecast-day-name">${dayLabel}</div>
         <div class="weather-forecast-temps">
           <span class="weather-icon" aria-hidden="true">${icon}</span>
           <span class="weather-temp-max">${max != null ? max.toFixed(0) : "--"}°</span>
@@ -233,22 +210,29 @@ function useBrowserLocationForWeather() {
   setWeatherStatus("Detecting browser location…", false);
 
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
+    async (pos) => {
       const { latitude, longitude } = pos.coords;
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
         setWeatherStatus("Browser returned invalid coordinates.", true);
         return;
       }
-      weatherConfig = {
-        lat: latitude,
-        lon: longitude,
-        label: "Browser location",
-        source: "geolocation",
-      };
-      applyWeatherConfigToForm();
-      saveWeatherConfig(weatherConfig);
-      setWeatherStatus("Location updated from browser.", false);
-      loadWeather();
+      try {
+        await fetchJson("/api/weather/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            lat: latitude,
+            lon: longitude,
+            label: "Browser location",
+          }),
+        });
+        weatherConfig = { lat: latitude, lon: longitude, label: "Browser location", source: "geolocation" };
+        applyWeatherConfigToForm();
+        setWeatherStatus("Location updated from browser.", false);
+        await fetchJson("/api/weather/refresh", { method: "POST" });
+        loadWeather();
+      } catch {
+        setWeatherStatus("Failed to save location.", true);
+      }
     },
     () => {
       setWeatherStatus("Unable to access browser location.", true);
@@ -261,10 +245,10 @@ function useBrowserLocationForWeather() {
   );
 }
 
-function initWeatherConfig() {
-  const stored = loadStoredWeatherConfig();
-  if (stored) {
-    weatherConfig = stored;
+async function initWeatherConfig() {
+  const fromServer = await loadWeatherConfigFromServer();
+  if (fromServer) {
+    weatherConfig = fromServer;
   }
   applyWeatherConfigToForm();
 }
@@ -280,16 +264,25 @@ function attachWeatherSettingsHandlers() {
   }
 
   if (saveLocationBtn) {
-    saveLocationBtn.addEventListener("click", () => {
+    saveLocationBtn.addEventListener("click", async () => {
       const cfg = readWeatherConfigFromForm();
       if (!cfg) {
         setWeatherStatus("Please enter a valid latitude and longitude.", true);
         return;
       }
-      weatherConfig = cfg;
-      saveWeatherConfig(weatherConfig);
-      setWeatherStatus("Weather location saved.", false);
-      loadWeather();
+      try {
+        const data = await fetchJson("/api/weather/settings", {
+          method: "PUT",
+          body: JSON.stringify({ lat: cfg.lat, lon: cfg.lon, label: cfg.label }),
+        });
+        weatherConfig = { ...cfg, label: data.label || cfg.label, source: "custom" };
+        applyWeatherConfigToForm();
+        setWeatherStatus("Weather location saved.", false);
+        await fetchJson("/api/weather/refresh", { method: "POST" });
+        loadWeather();
+      } catch {
+        setWeatherStatus("Failed to save location.", true);
+      }
     });
   }
 }
@@ -476,42 +469,43 @@ async function sendCurrentTemperature() {
 
 let historyChartInstance = null;
 
+function parseTimestamp(ts) {
+  const hasZone = ts.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(ts);
+  const utcString = hasZone ? ts : ts.replace(" ", "T") + "Z";
+  return new Date(utcString).getTime();
+}
+
 async function loadHistoryChart() {
   try {
-    const data = await fetchJson("/api/temperature/history?limit=500");
+    const [tempData, weatherData] = await Promise.all([
+      fetchJson("/api/temperature/history?limit=500"),
+      fetchJson("/api/weather/history?limit=500").catch(() => ({ history: [] })),
+    ]);
     const container = document.getElementById("history-chart");
     if (!container) return;
 
     const now = Date.now();
     const cutoff = now - 24 * 60 * 60 * 1000;
 
-    const points = data.history
-      .map((row) => {
-        const hasZone = row.timestamp.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(row.timestamp);
-        const utcString = hasZone ? row.timestamp : row.timestamp.replace(" ", "T") + "Z";
-        const t = new Date(utcString).getTime();
-        return { t, temperature: row.temperature };
-      })
+    const roomPoints = tempData.history
+      .map((row) => ({ t: parseTimestamp(row.timestamp), temperature: row.temperature }))
+      .filter((p) => p.t >= cutoff)
+      .sort((a, b) => a.t - b.t);
+
+    const weatherPoints = (weatherData.history || [])
+      .map((row) => ({ t: parseTimestamp(row.timestamp), temperature: row.temperature }))
       .filter((p) => p.t >= cutoff)
       .sort((a, b) => a.t - b.t);
 
     container.innerHTML = "";
 
-    if (points.length === 0) {
+    if (roomPoints.length === 0 && weatherPoints.length === 0) {
       const empty = document.createElement("p");
       empty.className = "hint";
       empty.textContent = "No readings in the last 24 hours yet.";
       container.appendChild(empty);
       return;
     }
-
-    const labels = points.map((p) =>
-      new Date(p.t).toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    );
-    const temps = points.map((p) => p.temperature);
 
     const canvas = document.createElement("canvas");
     container.appendChild(canvas);
@@ -525,13 +519,22 @@ async function loadHistoryChart() {
     historyChartInstance = new Chart(ctx, {
       type: "line",
       data: {
-        labels,
         datasets: [
           {
-            label: "Temperature (°C)",
-            data: temps,
+            label: "Room (°C)",
+            data: roomPoints.map((p) => ({ x: p.t, y: p.temperature })),
             borderColor: "#38bdf8",
             backgroundColor: "rgba(56, 189, 248, 0.18)",
+            borderWidth: 2,
+            tension: 0.25,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          },
+          {
+            label: "Outdoor (°C)",
+            data: weatherPoints.map((p) => ({ x: p.t, y: p.temperature })),
+            borderColor: "#f59e0b",
+            backgroundColor: "rgba(245, 158, 11, 0.12)",
             borderWidth: 2,
             tension: 0.25,
             pointRadius: 2,
@@ -544,6 +547,12 @@ async function loadHistoryChart() {
         maintainAspectRatio: false,
         scales: {
           x: {
+            type: "time",
+            time: {
+              unit: "hour",
+              displayFormats: { hour: "HH:mm", day: "MMM d" },
+              tooltipFormat: "PPp",
+            },
             grid: {
               color: "rgba(148, 163, 184, 0.15)",
             },
@@ -570,7 +579,7 @@ async function loadHistoryChart() {
           },
           tooltip: {
             callbacks: {
-              label: (ctx) => `${ctx.parsed.y.toFixed(1)} °C`,
+              label: (ctx) => `${ctx.dataset.label} ${ctx.parsed.y.toFixed(1)} °C`,
             },
           },
         },
@@ -930,7 +939,6 @@ document.addEventListener("DOMContentLoaded", () => {
   attachTemperatureSlider("schema-in-temp", "schema-in-temp-value");
   attachTemperatureSlider("schema-out-temp", "schema-out-temp-value");
 
-  initWeatherConfig();
   attachWeatherSettingsHandlers();
 
   loadTargetTemperature();
@@ -944,7 +952,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(loadTemperatureStatus, 300_000);
   setInterval(loadWeather, 1_800_000);
 
-  // Load weather once after initial config is ready
-  loadWeather();
+  (async () => {
+    await initWeatherConfig();
+    loadWeather();
+  })();
 });
 

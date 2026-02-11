@@ -15,6 +15,12 @@ import {
   setActiveSchema,
   getActiveSchema,
   SchemaInterval,
+  getWeatherSettings,
+  setWeatherSettings,
+  getWeatherForecastCache,
+  setWeatherForecastCache,
+  logWeatherCurrent,
+  getRecentWeatherCurrentLog,
 } from "./db";
 
 dotenv.config();
@@ -304,6 +310,108 @@ app.post("/api/schemas-active", (req, res) => {
     }
     res.status(500).json({ error: message });
   }
+});
+
+// ----- Weather API -----
+
+const WEATHER_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+type OpenMeteoResponse = {
+  current?: { temperature_2m?: number; weather_code?: number };
+  daily?: {
+    time?: string[];
+    temperature_2m_max?: number[];
+    temperature_2m_min?: number[];
+    weather_code?: number[];
+  };
+};
+
+async function fetchWeatherFromOpenMeteo(lat: number, lon: number): Promise<OpenMeteoResponse> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
+    lat,
+  )}&longitude=${encodeURIComponent(
+    lon,
+  )}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=4`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Open-Meteo API error: ${res.status}`);
+  }
+  return (await res.json()) as OpenMeteoResponse;
+}
+
+async function refreshWeatherForecast(): Promise<OpenMeteoResponse> {
+  const { lat, lon } = getWeatherSettings();
+  const data = await fetchWeatherFromOpenMeteo(lat, lon);
+  const payload = JSON.stringify(data);
+  setWeatherForecastCache(payload);
+  if (data.current && typeof data.current.temperature_2m === "number") {
+    logWeatherCurrent(data.current.temperature_2m, data.current.weather_code);
+  }
+  return data;
+}
+
+// GET forecast and current; refresh from Open-Meteo if cache is older than 1 hour
+app.get("/api/weather/forecast", async (_req, res) => {
+  try {
+    const cached = getWeatherForecastCache();
+    const now = Date.now();
+    const cacheAgeMs = cached ? now - new Date(cached.updatedAt).getTime() : Infinity;
+
+    if (!cached || cacheAgeMs >= WEATHER_CACHE_TTL_MS) {
+      const data = await refreshWeatherForecast();
+      return res.json({ ...data, label: getWeatherSettings().label });
+    }
+
+    const data = JSON.parse(cached.payload) as OpenMeteoResponse;
+    res.json({ ...data, label: getWeatherSettings().label });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Weather refresh failed";
+    console.error("Weather forecast error:", err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST to force refresh (e.g. from cron)
+app.post("/api/weather/refresh", async (_req, res) => {
+  try {
+    const data = await refreshWeatherForecast();
+    res.json({ ...data, label: getWeatherSettings().label });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Weather refresh failed";
+    console.error("Weather refresh error:", err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// Get weather location settings
+app.get("/api/weather/settings", (_req, res) => {
+  const settings = getWeatherSettings();
+  res.json(settings);
+});
+
+// Update weather location settings
+app.put("/api/weather/settings", (req, res) => {
+  const { lat, lon, label } = req.body as { lat?: number; lon?: number; label?: string };
+  if (typeof lat !== "number" || !Number.isFinite(lat) || lat < -90 || lat > 90) {
+    return res.status(400).json({ error: "lat must be a number between -90 and 90" });
+  }
+  if (typeof lon !== "number" || !Number.isFinite(lon) || lon < -180 || lon > 180) {
+    return res.status(400).json({ error: "lon must be a number between -180 and 180" });
+  }
+  const labelStr = typeof label === "string" && label.trim() ? label.trim() : "Custom location";
+  setWeatherSettings(lat, lon, labelStr);
+  res.json({ lat, lon, label: labelStr });
+});
+
+// Weather (outdoor) temperature history for the chart
+app.get("/api/weather/history", (req, res) => {
+  const limitParam = req.query.limit;
+  const limit = typeof limitParam === "string" ? Number(limitParam) : 500;
+  const safeLimit = Number.isFinite(limit) && limit > 0 && limit <= 500 ? limit : 500;
+  const rows = getRecentWeatherCurrentLog(safeLimit);
+  res.json({
+    history: rows.map((r) => ({ timestamp: r.timestamp, temperature: r.temperature })),
+  });
 });
 
 app.listen(PORT, () => {

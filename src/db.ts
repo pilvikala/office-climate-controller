@@ -41,8 +41,31 @@ db.exec(`
     end_time_minutes INTEGER NOT NULL CHECK(end_time_minutes BETWEEN 1 AND 1440)
   );
 
+  CREATE TABLE IF NOT EXISTS weather_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    label TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS weather_forecast_cache (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    updated_at TEXT NOT NULL,
+    payload TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS weather_current_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT DEFAULT (datetime('now')),
+    temperature REAL NOT NULL,
+    weather_code INTEGER
+  );
+
   INSERT OR IGNORE INTO settings (id, target_temperature)
   VALUES (1, 22.0);
+
+  INSERT OR IGNORE INTO weather_settings (id, lat, lon, label)
+  VALUES (1, 52.2297, 21.0122, 'Office');
 `);
 
 export type TemperatureLogRow = { timestamp: string; temperature: number };
@@ -315,5 +338,55 @@ export function getEffectiveTargetTemperature(now: Date = new Date()): Effective
     schemaId: active.id,
     mode: "in-office",
   };
+}
+
+// ----- Weather -----
+
+export type WeatherSettings = { lat: number; lon: number; label: string };
+
+export function getWeatherSettings(): WeatherSettings {
+  const row = db
+    .prepare("SELECT lat, lon, label FROM weather_settings WHERE id = 1")
+    .get() as { lat: number; lon: number; label: string };
+  return row;
+}
+
+export function setWeatherSettings(lat: number, lon: number, label: string): void {
+  db.prepare("UPDATE weather_settings SET lat = ?, lon = ?, label = ? WHERE id = 1").run(lat, lon, label);
+}
+
+export type WeatherForecastCacheRow = { updatedAt: string; payload: string };
+
+export function getWeatherForecastCache(): WeatherForecastCacheRow | null {
+  const row = db
+    .prepare("SELECT updated_at AS updatedAt, payload FROM weather_forecast_cache WHERE id = 1")
+    .get() as { updatedAt: string; payload: string } | undefined;
+  return row ?? null;
+}
+
+export function setWeatherForecastCache(payload: string): void {
+  const now = new Date().toISOString();
+  db.prepare("INSERT OR REPLACE INTO weather_forecast_cache (id, updated_at, payload) VALUES (1, ?, ?)").run(
+    now,
+    payload,
+  );
+}
+
+export function logWeatherCurrent(temperature: number, weatherCode?: number): void {
+  db.prepare("INSERT INTO weather_current_log (temperature, weather_code) VALUES (?, ?)").run(
+    temperature,
+    weatherCode ?? null,
+  );
+}
+
+export type WeatherCurrentLogRow = { timestamp: string; temperature: number; weatherCode: number | null };
+
+export function getRecentWeatherCurrentLog(limit = 500): WeatherCurrentLogRow[] {
+  const rows = db
+    .prepare(
+      "SELECT timestamp, temperature, weather_code AS weatherCode FROM weather_current_log ORDER BY timestamp DESC LIMIT ?",
+    )
+    .all(limit) as WeatherCurrentLogRow[];
+  return rows;
 }
 
