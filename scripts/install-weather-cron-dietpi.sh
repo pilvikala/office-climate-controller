@@ -17,10 +17,12 @@ BASE_URL="${1:-${BASE_URL:-http://127.0.0.1:3000}}"
 BASE_URL="${BASE_URL%/}"
 REFRESH_URL="${BASE_URL}/api/weather/refresh"
 
+CURL_PATH=$(which curl)
+
 # Cron: at minute 0 of every hour
 CRON_SCHEDULE="0 * * * *"
 # Run curl silently; POST to trigger refresh (no output needed)
-CRON_CMD="curl -s -X POST ${REFRESH_URL} >/dev/null 2>&1"
+CRON_CMD="${CURL_PATH} -s -X POST ${REFRESH_URL} >/dev/null 2>&1"
 CRON_LINE="${CRON_SCHEDULE} ${CRON_CMD}"
 
 echo "Weather refresh cron installer (DietPi)"
@@ -34,9 +36,9 @@ if ! command -v crontab &>/dev/null; then
   echo "Installing cron..."
   sudo apt-get update -qq
   sudo apt-get install -y cron
-  sudo systemctl enable cron
-  sudo systemctl start cron || true
 fi
+sudo systemctl enable cron
+sudo systemctl start cron || true # ignore error if cron is already running
 
 # Use current user's crontab
 TMP_CRON=$(mktemp)
