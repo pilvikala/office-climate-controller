@@ -22,6 +22,7 @@ import {
   logWeatherCurrent,
   getRecentWeatherCurrentLog,
 } from "./db";
+import { getPowerSocketRecommendation } from "./powerRecommendation";
 
 dotenv.config();
 
@@ -118,6 +119,15 @@ app.get("/api/temperature/history", (req, res) => {
   const history = getRecentTemperatures(safeLimit);
 
   res.json({ history });
+});
+
+// Power socket: recommendation for on (1) or off (0) based on current vs target temperature
+app.get("/api/power-socket/recommendation", (_req, res) => {
+  const state = getPowerSocketRecommendation(new Date());
+  if (state === null) {
+    return res.status(503).json({ error: "no_temperature_reading" });
+  }
+  res.json({ state });
 });
 
 // ---- Schema APIs ----

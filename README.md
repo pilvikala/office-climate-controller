@@ -142,6 +142,32 @@ All endpoints are served from `http://localhost:3000` by default.
   curl "http://localhost:3000/api/temperature/history?limit=20"
   ```
 
+#### Power socket
+
+- **GET** `/api/power-socket/recommendation`  
+  Returns whether a power socket (e.g. for heating) should be on or off, based on the last temperature reading vs the effective target temperature. Intended for devices that poll this endpoint to control a relay.
+
+  - **200** – Recommendation available:
+    - `state: 1` → **on** (last reading below target; heating should run).
+    - `state: 0` → **off** (last reading at or above target).
+  - **503** – No recent temperature reading; recommendation cannot be computed.
+
+  **Response example (200):**
+
+  ```json
+  { "state": 1 }
+  ```
+
+  **Response example (503):**
+
+  ```json
+  { "error": "no_temperature_reading" }
+  ```
+
+  ```bash
+  curl http://localhost:3000/api/power-socket/recommendation
+  ```
+
 #### Schema endpoints
 
 - **GET** `/api/schemas`  
