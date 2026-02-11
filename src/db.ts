@@ -306,6 +306,8 @@ export type EffectiveTargetTemperature = {
   mode: "in-office" | "out-of-office" | null;
 };
 
+// Schedules are stored and evaluated in UTC. The frontend converts between
+// the user's local timezone and UTC when sending/displaying schedule data.
 export function getEffectiveTargetTemperature(now: Date = new Date()): EffectiveTargetTemperature {
   const base = getBaseTargetTemperature();
   const active = getActiveSchema();
@@ -314,8 +316,8 @@ export function getEffectiveTargetTemperature(now: Date = new Date()): Effective
     return { temperature: base, source: "default", schemaId: null, mode: null };
   }
 
-  const day = now.getDay(); // 0 (Sunday) - 6 (Saturday)
-  const minutes = now.getHours() * 60 + now.getMinutes();
+  const day = now.getUTCDay(); // 0 (Sunday) - 6 (Saturday)
+  const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
 
   const matching = active.intervals.filter(
     (interval) => interval.dayOfWeek === day && interval.startTimeMinutes <= minutes && minutes < interval.endTimeMinutes,

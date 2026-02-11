@@ -36,13 +36,14 @@ app.use(express.json());
 const publicDir = path.join(process.cwd(), "public");
 app.use(express.static(publicDir));
 
-// Helper to parse "HH:MM" into minutes
+// Helper to parse "HH:MM" (UTC) into minutes. Accepts "24:00" for end-of-day (1440).
 function parseTimeToMinutes(value: string): number | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value);
   if (!match) return null;
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
   if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours === 24 && minutes === 0) return 1440; // end of day (for UTC intervals)
   if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
   return hours * 60 + minutes;
 }

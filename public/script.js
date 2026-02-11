@@ -591,8 +591,95 @@ async function loadHistoryChart() {
 }
 
 // ----- Schema UI -----
+// Schedules are stored on the server in UTC. We convert between the user's local
+// timezone (from the browser) and UTC when saving and loading.
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// Reference week: 2020-01-05 is Sunday (for consistent day-of-week mapping).
+const REF_SUNDAY = new Date(2020, 0, 5, 0, 0, 0, 0);
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+/** Convert one local (user) interval to one or more UTC intervals. */
+function localToUtcIntervals(localDayOfWeek, startHHMM, endHHMM) {
+  const [startH, startM] = startHHMM.split(":").map(Number);
+  const [endH, endM] = endHHMM.split(":").map(Number);
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+
+  const startDate = new Date(REF_SUNDAY);
+  startDate.setDate(startDate.getDate() + localDayOfWeek);
+  startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+
+  const endDate = new Date(REF_SUNDAY);
+  endDate.setDate(endDate.getDate() + localDayOfWeek);
+  endDate.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0);
+
+  const utcDayStart = startDate.getUTCDay();
+  const utcMinStart = startDate.getUTCHours() * 60 + startDate.getUTCMinutes();
+  const utcDayEnd = endDate.getUTCDay();
+  const utcMinEnd = endDate.getUTCHours() * 60 + endDate.getUTCMinutes();
+
+  const out = [];
+  if (utcDayStart === utcDayEnd && utcMinStart < utcMinEnd) {
+    out.push({
+      dayOfWeek: utcDayStart,
+      start: `${pad2(Math.floor(utcMinStart / 60))}:${pad2(utcMinStart % 60)}`,
+      end: `${pad2(Math.floor(utcMinEnd / 60))}:${pad2(utcMinEnd % 60)}`,
+    });
+  } else if (utcDayStart === utcDayEnd && utcMinStart >= utcMinEnd) {
+    // spans midnight UTC: same day but end before start => full day split
+    out.push({
+      dayOfWeek: utcDayStart,
+      start: `${pad2(Math.floor(utcMinStart / 60))}:${pad2(utcMinStart % 60)}`,
+      end: "24:00",
+    });
+    const nextDay = (utcDayStart + 1) % 7;
+    out.push({ dayOfWeek: nextDay, start: "00:00", end: `${pad2(Math.floor(utcMinEnd / 60))}:${pad2(utcMinEnd % 60)}` });
+  } else {
+    // end is on a later UTC day
+    out.push({
+      dayOfWeek: utcDayStart,
+      start: `${pad2(Math.floor(utcMinStart / 60))}:${pad2(utcMinStart % 60)}`,
+      end: "24:00",
+    });
+    out.push({
+      dayOfWeek: utcDayEnd,
+      start: "00:00",
+      end: `${pad2(Math.floor(utcMinEnd / 60))}:${pad2(utcMinEnd % 60)}`,
+    });
+  }
+  return out;
+}
+
+/** Convert one UTC interval to one or more local intervals (for display). */
+function utcIntervalToLocal(utcDayOfWeek, utcStartMinutes, utcEndMinutes) {
+  const startDate = new Date(Date.UTC(2020, 0, 5 + utcDayOfWeek, Math.floor(utcStartMinutes / 60), utcStartMinutes % 60, 0, 0));
+  const endMinutesNorm = utcEndMinutes === 1440 ? 0 : utcEndMinutes;
+  const endDayOffset = utcEndMinutes === 1440 ? 1 : 0;
+  const endDate = new Date(
+    Date.UTC(2020, 0, 5 + utcDayOfWeek + endDayOffset, Math.floor(endMinutesNorm / 60), endMinutesNorm % 60, 0, 0),
+  );
+
+  const localDayStart = startDate.getDay();
+  const localMinStart = startDate.getHours() * 60 + startDate.getMinutes();
+  const localDayEnd = endDate.getDay();
+  const localMinEnd = endDate.getHours() * 60 + endDate.getMinutes();
+
+  const segments = [];
+  if (localDayStart === localDayEnd && localMinStart < localMinEnd) {
+    segments.push({ localDay: localDayStart, localStartMin: localMinStart, localEndMin: localMinEnd });
+  } else {
+    segments.push({ localDay: localDayStart, localStartMin: localMinStart, localEndMin: 24 * 60 });
+    if (localDayEnd !== localDayStart || localMinEnd > 0) {
+      segments.push({ localDay: localDayEnd, localStartMin: 0, localEndMin: localMinEnd });
+    }
+  }
+  return segments;
+}
 
 let currentSchemaId = null;
 let activeSchemaId = null;
@@ -654,21 +741,27 @@ function fillSchemaForm(schema) {
   updateTemperatureSlider("schema-out-temp", "schema-out-temp-value");
   document.getElementById("schema-status").textContent = "";
 
-  const byDay = {};
+  // Server intervals are in UTC. Convert to local and merge by local day.
+  const byLocalDay = {};
   (schema.intervals || []).forEach((p) => {
-    const existing = byDay[p.dayOfWeek];
-    if (!existing || p.startTimeMinutes > existing.startTimeMinutes) {
-      byDay[p.dayOfWeek] = p;
-    }
+    const segments = utcIntervalToLocal(p.dayOfWeek, p.startTimeMinutes, p.endTimeMinutes);
+    segments.forEach(({ localDay, localStartMin, localEndMin }) => {
+      if (!byLocalDay[localDay]) {
+        byLocalDay[localDay] = { start: localStartMin, end: localEndMin };
+      } else {
+        byLocalDay[localDay].start = Math.min(byLocalDay[localDay].start, localStartMin);
+        byLocalDay[localDay].end = Math.max(byLocalDay[localDay].end, localEndMin);
+      }
+    });
   });
 
   for (let day = 0; day < DAY_LABELS.length; day++) {
-    const p = byDay[day];
+    const p = byLocalDay[day];
     if (!p) continue;
-    const startH = String(Math.floor(p.startTimeMinutes / 60)).padStart(2, "0");
-    const startM = String(p.startTimeMinutes % 60).padStart(2, "0");
-    const endH = String(Math.floor(p.endTimeMinutes / 60)).padStart(2, "0");
-    const endM = String(p.endTimeMinutes % 60).padStart(2, "0");
+    const startH = pad2(Math.floor(p.start / 60));
+    const startM = pad2(p.start % 60);
+    const endH = pad2(Math.floor(p.end / 60));
+    const endM = pad2(p.end % 60);
     document.getElementById(`day-${day}-start`).value = `${startH}:${startM}`;
     document.getElementById(`day-${day}-end`).value = `${endH}:${endM}`;
   }
@@ -741,9 +834,10 @@ function collectSchemaFromForm() {
   for (let day = 0; day < DAY_LABELS.length; day++) {
     const start = document.getElementById(`day-${day}-start`).value;
     const end = document.getElementById(`day-${day}-end`).value;
-    if (!start && !end) continue;
+    if (!start || !end) continue;
 
-    intervals.push({ dayOfWeek: day, start, end });
+    const utcIntervals = localToUtcIntervals(day, start, end);
+    utcIntervals.forEach((u) => intervals.push({ dayOfWeek: u.dayOfWeek, start: u.start, end: u.end }));
   }
 
   return { name, description, inOfficeTemperature: inTempValue, outOfOfficeTemperature: outTempValue, intervals };
