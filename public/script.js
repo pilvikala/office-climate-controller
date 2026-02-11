@@ -469,42 +469,43 @@ async function sendCurrentTemperature() {
 
 let historyChartInstance = null;
 
+function parseTimestamp(ts) {
+  const hasZone = ts.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(ts);
+  const utcString = hasZone ? ts : ts.replace(" ", "T") + "Z";
+  return new Date(utcString).getTime();
+}
+
 async function loadHistoryChart() {
   try {
-    const data = await fetchJson("/api/temperature/history?limit=500");
+    const [tempData, weatherData] = await Promise.all([
+      fetchJson("/api/temperature/history?limit=500"),
+      fetchJson("/api/weather/history?limit=500").catch(() => ({ history: [] })),
+    ]);
     const container = document.getElementById("history-chart");
     if (!container) return;
 
     const now = Date.now();
     const cutoff = now - 24 * 60 * 60 * 1000;
 
-    const points = data.history
-      .map((row) => {
-        const hasZone = row.timestamp.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(row.timestamp);
-        const utcString = hasZone ? row.timestamp : row.timestamp.replace(" ", "T") + "Z";
-        const t = new Date(utcString).getTime();
-        return { t, temperature: row.temperature };
-      })
+    const roomPoints = tempData.history
+      .map((row) => ({ t: parseTimestamp(row.timestamp), temperature: row.temperature }))
+      .filter((p) => p.t >= cutoff)
+      .sort((a, b) => a.t - b.t);
+
+    const weatherPoints = (weatherData.history || [])
+      .map((row) => ({ t: parseTimestamp(row.timestamp), temperature: row.temperature }))
       .filter((p) => p.t >= cutoff)
       .sort((a, b) => a.t - b.t);
 
     container.innerHTML = "";
 
-    if (points.length === 0) {
+    if (roomPoints.length === 0 && weatherPoints.length === 0) {
       const empty = document.createElement("p");
       empty.className = "hint";
       empty.textContent = "No readings in the last 24 hours yet.";
       container.appendChild(empty);
       return;
     }
-
-    const labels = points.map((p) =>
-      new Date(p.t).toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    );
-    const temps = points.map((p) => p.temperature);
 
     const canvas = document.createElement("canvas");
     container.appendChild(canvas);
@@ -518,13 +519,22 @@ async function loadHistoryChart() {
     historyChartInstance = new Chart(ctx, {
       type: "line",
       data: {
-        labels,
         datasets: [
           {
-            label: "Temperature (°C)",
-            data: temps,
+            label: "Room (°C)",
+            data: roomPoints.map((p) => ({ x: p.t, y: p.temperature })),
             borderColor: "#38bdf8",
             backgroundColor: "rgba(56, 189, 248, 0.18)",
+            borderWidth: 2,
+            tension: 0.25,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          },
+          {
+            label: "Outdoor (°C)",
+            data: weatherPoints.map((p) => ({ x: p.t, y: p.temperature })),
+            borderColor: "#f59e0b",
+            backgroundColor: "rgba(245, 158, 11, 0.12)",
             borderWidth: 2,
             tension: 0.25,
             pointRadius: 2,
@@ -537,6 +547,12 @@ async function loadHistoryChart() {
         maintainAspectRatio: false,
         scales: {
           x: {
+            type: "time",
+            time: {
+              unit: "hour",
+              displayFormats: { hour: "HH:mm", day: "MMM d" },
+              tooltipFormat: "PPp",
+            },
             grid: {
               color: "rgba(148, 163, 184, 0.15)",
             },
@@ -563,7 +579,7 @@ async function loadHistoryChart() {
           },
           tooltip: {
             callbacks: {
-              label: (ctx) => `${ctx.parsed.y.toFixed(1)} °C`,
+              label: (ctx) => `${ctx.dataset.label} ${ctx.parsed.y.toFixed(1)} °C`,
             },
           },
         },

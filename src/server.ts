@@ -20,6 +20,7 @@ import {
   getWeatherForecastCache,
   setWeatherForecastCache,
   logWeatherCurrent,
+  getRecentWeatherCurrentLog,
 } from "./db";
 
 dotenv.config();
@@ -400,6 +401,17 @@ app.put("/api/weather/settings", (req, res) => {
   const labelStr = typeof label === "string" && label.trim() ? label.trim() : "Custom location";
   setWeatherSettings(lat, lon, labelStr);
   res.json({ lat, lon, label: labelStr });
+});
+
+// Weather (outdoor) temperature history for the chart
+app.get("/api/weather/history", (req, res) => {
+  const limitParam = req.query.limit;
+  const limit = typeof limitParam === "string" ? Number(limitParam) : 500;
+  const safeLimit = Number.isFinite(limit) && limit > 0 && limit <= 500 ? limit : 500;
+  const rows = getRecentWeatherCurrentLog(safeLimit);
+  res.json({
+    history: rows.map((r) => ({ timestamp: r.timestamp, temperature: r.temperature })),
+  });
 });
 
 app.listen(PORT, () => {
