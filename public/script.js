@@ -533,6 +533,7 @@ async function loadHistoryChart() {
           {
             label: "Outdoor (°C)",
             data: weatherPoints.map((p) => ({ x: p.t, y: p.temperature })),
+            yAxisID: "yRight",
             borderColor: "#f59e0b",
             backgroundColor: "rgba(245, 158, 11, 0.12)",
             borderWidth: 2,
@@ -562,12 +563,23 @@ async function loadHistoryChart() {
             },
           },
           y: {
+            position: "left",
             grid: {
               color: "rgba(30, 64, 175, 0.4)",
             },
             ticks: {
               color: "#9ca3af",
-              callback: (value) => value + "°",
+              callback: (value) => Number(value).toFixed(1) + "°",
+            },
+          },
+          yRight: {
+            position: "right",
+            grid: {
+              drawOnChartArea: false,
+            },
+            ticks: {
+              color: "#f59e0b",
+              callback: (value) => Number(value).toFixed(1) + "°",
             },
           },
         },
